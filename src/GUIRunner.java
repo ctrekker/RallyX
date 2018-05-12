@@ -11,7 +11,13 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class GUIRunner extends JFrame {
+    public static final boolean DEBUG_MODE = true;
+    public static final int RENDER_WIDTH=640;
+    public static final int RENDER_HEIGHT=480;
+    public static final double fps=60;
+
     public static void main(String[] args) {
+        LevelManager.init();
         new GUIRunner();
     }
 
@@ -31,14 +37,15 @@ public class GUIRunner extends JFrame {
     private class GameGraphics extends Component implements KeyListener {
         /*
         direction:
-        0=left
-        1=right
-        2=up
-        3=down
+        0=up
+        1=left
+        2=down
+        3=right
          */
-        private int direction=-1;
         private int requestedDirection=-1;
-        private final double fps=60;
+        private boolean firstTime=true;
+
+        Player player;
 
         private BufferedImage graphicsImg;
 
@@ -48,36 +55,71 @@ public class GUIRunner extends JFrame {
                 public void run() {
                     repaint();
                 }
-            }, 1000, (int)(1000.0/fps), TimeUnit.MILLISECONDS);
+            }, 0, (int)(1000.0/fps), TimeUnit.MILLISECONDS);
         }
         @Override
         public void paint(Graphics g) {
             if(graphicsImg==null) {
-                graphicsImg=new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
+                graphicsImg=new BufferedImage(RENDER_WIDTH, RENDER_HEIGHT, BufferedImage.TYPE_INT_RGB);
+            }
+            if(firstTime) {
+                player=new Player(5*90+45, 5*90+45);
+
+                firstTime=false;
+            }
+
+            // Handle key events/changes
+            if(requestedDirection!=-1) {
+                player.setDirection(requestedDirection);
+                requestedDirection=-1;
+            }
+            switch(player.getDirection()) {
+                case 0:
+                    player.move(0, -1);
+                    break;
+                case 1:
+                    player.move(1, 0);
+                    break;
+                case 2:
+                    player.move(0, 1);
+                    break;
+                case 3:
+                    player.move(-1, 0);
+                    break;
             }
 
             Graphics2D g2=(Graphics2D)graphicsImg.getGraphics();
-            g2.setBackground(Color.BLACK);
-            g2.clearRect(0, 0, getWidth(), getHeight());
+            g2.setBackground(Color.BLUE);
+            g2.clearRect(0, 0, RENDER_WIDTH, RENDER_HEIGHT);
+
+            WorldTile[][] tiles=LevelManager.getVisibleRegion(player);
+            for(int y=0; y<tiles.length; y++) {
+                for(int x=0; x<tiles[y].length; x++) {
+                    WorldTile current=tiles[y][x];
+                    if(current==null) continue;
+                    LevelManager.drawTile(current, player, g2);
+                }
+            }
+            player.draw(g2);
 
             // Draw the offscreen canvas to the main canvas
-            g.drawImage(graphicsImg, 0, 0, null);
+            g.drawImage(graphicsImg, 0, 0, getWidth(), getHeight(), null);
         }
 
         @Override
         public void keyPressed(KeyEvent keyEvent) {
             switch(keyEvent.getKeyCode()) {
                 case KeyEvent.VK_A:
-                    requestedDirection=0;
+                    if(player.canTurnLeft()) requestedDirection=3;
                     break;
                 case KeyEvent.VK_D:
-                    requestedDirection=1;
+                    if(player.canTurnRight())requestedDirection=1;
                     break;
                 case KeyEvent.VK_W:
-                    requestedDirection=2;
+                    if(player.canTurnUp())requestedDirection=0;
                     break;
                 case KeyEvent.VK_S:
-                    requestedDirection=3;
+                    if(player.canTurnDown())requestedDirection=2;
                     break;
             }
         }
